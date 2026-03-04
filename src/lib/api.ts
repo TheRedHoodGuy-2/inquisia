@@ -348,11 +348,12 @@ export const aiApi = {
       method: 'POST',
       body: JSON.stringify({ query }),
     }),
-  validate: (title: string, abstract: string, file: File | null) => {
+  validate: (title: string, abstract: string, file: File | null, pdfText?: string) => {
     const formData = new FormData()
     formData.append('title', title)
     formData.append('abstract', abstract)
     if (file) formData.append('file', file)
+    if (pdfText) formData.append('pdfText', pdfText)
     return apiFetch<{ valid: boolean; category: string; tags: string[]; message?: string; suggested_prompt?: string; pdfText?: string; plagiarismData?: { score: number, similarProjectId?: string, similarityReason?: string } }>('/api/ai/validate', {
       method: 'POST',
       body: formData,

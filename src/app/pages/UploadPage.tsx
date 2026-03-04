@@ -8,6 +8,7 @@ import type { Department, Supervisor } from '../../lib/types'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
+import { extractPdfText } from '../../lib/pdfExtract'
 
 // ─── Progress indicator ───────────────────────────────────────────────────────
 
@@ -191,6 +192,8 @@ export function UploadPage() {
     publicApi.supervisors().then((r) => { if (r.success) setSupervisors(r.data) })
   }, [])
 
+  const [extractedPdfText, setExtractedPdfText] = useState<string>("")
+
   /**
    * AI validation is not a backend feature — the actual categorisation happens
    * server-side after submission. We gate step 2 purely on field length requirements.
@@ -202,14 +205,16 @@ export function UploadPage() {
     setValidating(true)
     setValidationResult(null)
 
-    const res = await aiApi.validate(title, abstract, pdfFile)
+    // Call API with pre-extracted text so server doesn't have to parse the PDF
+    const res = await aiApi.validate(title, abstract, pdfFile, extractedPdfText || undefined)
+
     if (res.success) {
       if (res.data.valid === false) {
         setValidationResult({
           success: false,
           message: res.data.message || 'The abstract does not seem to match the title or is of low quality.',
           suggested_prompt: res.data.suggested_prompt,
-          pdfText: res.data.pdfText,
+          pdfText: res.data.pdfText || extractedPdfText,
           plagiarismData: res.data.plagiarismData
         })
         setValidatedContent(null)
@@ -218,6 +223,8 @@ export function UploadPage() {
           success: true,
           message: res.data.message || 'Content looks good!',
           category: res.data.category,
+          suggested_prompt: res.data.suggested_prompt, // May have a prompt for warnings (like rule 4)
+          pdfText: res.data.pdfText || extractedPdfText,
           plagiarismData: res.data.plagiarismData
         })
         setValidatedContent({ title, abstract })
@@ -384,7 +391,10 @@ export function UploadPage() {
                             </p>
                           </div>
                         </div>
-                        {validationResult.success === false && validationResult.suggested_prompt && (
+
+                        {/* Always show the Ask Elara button if there is a suggested prompt — 
+                            this includes both full validation failures AND success validations with warnings (like Rule 4 PDF mismatch) */}
+                        {validationResult.suggested_prompt && (
                           <div className="ml-8 mt-1">
                             <button
                               onClick={() => {
@@ -394,7 +404,7 @@ export function UploadPage() {
                                 const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: elaraContext } })
                                 window.dispatchEvent(event)
                               }}
-                              className="px-4 py-2 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 text-[12px] font-medium transition-colors flex items-center gap-2">
+                              className="px-4 py-2 rounded-full border border-[#0066FF]/20 bg-[#0066FF]/5 hover:bg-[#0066FF]/10 text-[#0066FF] text-[12px] font-medium transition-colors flex items-center gap-2">
                               ✨ Ask Elara for Help
                             </button>
                           </div>
