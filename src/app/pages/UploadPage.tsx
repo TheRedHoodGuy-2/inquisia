@@ -404,7 +404,7 @@ export function UploadPage() {
                                 const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: elaraContext } })
                                 window.dispatchEvent(event)
                               }}
-                              className="px-4 py-2 rounded-full border border-[#0066FF]/20 bg-[#0066FF]/5 hover:bg-[#0066FF]/10 text-[#0066FF] text-[12px] font-medium transition-colors flex items-center gap-2">
+                              className="px-4 py-2 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 text-[12px] font-medium transition-colors flex items-center gap-2">
                               ✨ Ask Elara for Help
                             </button>
                           </div>
