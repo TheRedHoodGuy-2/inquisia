@@ -23,16 +23,9 @@ import type {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const _viteApiUrl = (import.meta as ImportMeta & { env: Record<string, string> }).env?.VITE_API_URL
-
-// In production, VITE_API_URL is unset → BASE_URL is '' (same-origin).
-// Vercel's vercel.json proxies /api/* to the real backend, so cookies stay same-site.
-// In local dev, fall back to localhost:3000.
-const BASE_URL = _viteApiUrl != null && _viteApiUrl !== ''
-  ? _viteApiUrl
-  : (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? ''
-    : 'http://localhost:3000')
+const BASE_URL =
+  (import.meta as ImportMeta & { env: Record<string, string> }).env?.VITE_API_URL ??
+  (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3000` : 'http://localhost:3000')
 
 // ─── Core Fetch ───────────────────────────────────────────────────────────────
 
@@ -348,12 +341,23 @@ export const aiApi = {
       method: 'POST',
       body: JSON.stringify({ query }),
     }),
-  validate: (title: string, abstract: string, file: File | null, pdfText?: string) => {
+  extract: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiFetch<{ text: string }>('/api/ai/extract', {
+      method: 'POST',
+      body: formData,
+    })
+  },
+  validate: (title: string, abstract: string, fileOrText: File | string | null) => {
     const formData = new FormData()
     formData.append('title', title)
     formData.append('abstract', abstract)
-    if (file) formData.append('file', file)
-    if (pdfText) formData.append('pdfText', pdfText)
+    if (fileOrText instanceof File) {
+      formData.append('file', fileOrText)
+    } else if (typeof fileOrText === 'string') {
+      formData.append('pdfText', fileOrText)
+    }
     return apiFetch<{ valid: boolean; category: string; tags: string[]; message?: string; suggested_prompt?: string; pdfText?: string; plagiarismData?: { score: number, similarProjectId?: string, similarityReason?: string } }>('/api/ai/validate', {
       method: 'POST',
       body: formData,

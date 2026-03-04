@@ -8,7 +8,6 @@ import type { Department, Supervisor } from '../../lib/types'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
-import { extractPdfText } from '../../lib/pdfExtract'
 
 // ─── Progress indicator ───────────────────────────────────────────────────────
 
@@ -159,6 +158,8 @@ export function UploadPage() {
 
   // Step 1
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [extractedPdfText, setExtractedPdfText] = useState('')
+  const [isExtracting, setIsExtracting] = useState(false)
   const [githubUrl, setGithubUrl] = useState('')
   const [liveUrl, setLiveUrl] = useState('')
 
@@ -192,29 +193,45 @@ export function UploadPage() {
     publicApi.supervisors().then((r) => { if (r.success) setSupervisors(r.data) })
   }, [])
 
-  const [extractedPdfText, setExtractedPdfText] = useState<string>("")
-
   /**
-   * AI validation is not a backend feature — the actual categorisation happens
-   * server-side after submission. We gate step 2 purely on field length requirements.
-   * If the abstract meets the 50-char minimum and the title is non-empty, validation
-   * is considered passed and the user can continue.
+   * We run extraction in Step 1 immediately upon file drop.
+   * Then in Step 2, validation is fast and we can provide the full text to Elara instantly.
    */
+  const handleFileDrop = async (file: File | null) => {
+    setPdfFile(file)
+    setExtractedPdfText('')
+
+    if (!file) return
+
+    setIsExtracting(true)
+    const toastId = toast.loading('Reading PDF contents...')
+
+    const res = await aiApi.extract(file)
+    if (res.success && res.data?.text) {
+      setExtractedPdfText(res.data.text)
+      toast.success('PDF read successfully.', { id: toastId })
+    } else {
+      const errorMessage = !res.success ? res.error : 'Invalid response';
+      toast.error(errorMessage || 'Failed to read PDF text. You can still proceed, but Elara won\'t have context.', { id: toastId })
+    }
+
+    setIsExtracting(false)
+  }
+
   const handleValidate = async () => {
     if (!title || abstract.length < 50) return
     setValidating(true)
     setValidationResult(null)
 
-    // Call API with pre-extracted text so server doesn't have to parse the PDF
-    const res = await aiApi.validate(title, abstract, pdfFile, extractedPdfText || undefined)
-
+    // Send the pre-extracted string instead of making the backend parse the heavy file again
+    const res = await aiApi.validate(title, abstract, extractedPdfText || pdfFile)
     if (res.success) {
       if (res.data.valid === false) {
         setValidationResult({
           success: false,
           message: res.data.message || 'The abstract does not seem to match the title or is of low quality.',
           suggested_prompt: res.data.suggested_prompt,
-          pdfText: res.data.pdfText || extractedPdfText,
+          pdfText: res.data.pdfText || extractedPdfText, // Fallback to our state if backend didn't echo it
           plagiarismData: res.data.plagiarismData
         })
         setValidatedContent(null)
@@ -223,8 +240,6 @@ export function UploadPage() {
           success: true,
           message: res.data.message || 'Content looks good!',
           category: res.data.category,
-          suggested_prompt: res.data.suggested_prompt, // May have a prompt for warnings (like rule 4)
-          pdfText: res.data.pdfText || extractedPdfText,
           plagiarismData: res.data.plagiarismData
         })
         setValidatedContent({ title, abstract })
@@ -289,6 +304,8 @@ export function UploadPage() {
       student_tags: tags,
       // Backend expects co_authors as an array of matriculation number strings.
       co_authors: teammates.map((t) => t.matric),
+      // Pass the locally extracted text string so backend skips the heavy pdf-parse and avoids the 60s timeout
+      pdfText: extractedPdfText || undefined,
     }
     if (githubUrl) metadata.github_url = githubUrl
     if (liveUrl) metadata.live_url = liveUrl
@@ -312,7 +329,7 @@ export function UploadPage() {
     validationResult?.success === true
 
   const canProceed = [
-    pdfFile !== null, // Step 1
+    pdfFile !== null && !isExtracting, // Step 1: require file and wait for extraction
     title.length >= 5 && abstract.length >= 50 && isContentValidated, // Step 2 — require AI validation
     true, // Step 3 — teammates optional
     selectedSupervisor.length > 0, // Step 4
@@ -339,7 +356,12 @@ export function UploadPage() {
               <StepCard>
                 <h2 className="mb-5 text-[#0A0A0A] dark:text-[#F5F5F5]" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '18px' }}>Upload Files</h2>
                 <div className="space-y-4">
-                  <DropZone file={pdfFile} onFile={setPdfFile} />
+                  <DropZone file={pdfFile} onFile={handleFileDrop} />
+                  {isExtracting && (
+                    <div className="flex justify-center items-center py-2 text-[#9CA3AF] text-[12px] gap-2 animate-pulse" style={{ fontFamily: 'var(--font-body)' }}>
+                      <Spinner size={14} className="animate-spin" /> Extracting text for Elara context...
+                    </div>
+                  )}
                   <FloatingLabel id="github" label="GitHub URL (optional)" value={githubUrl} onChange={setGithubUrl} type="url" />
                   <FloatingLabel id="live" label="Live Demo URL (optional)" value={liveUrl} onChange={setLiveUrl} type="url" />
                 </div>
@@ -391,17 +413,11 @@ export function UploadPage() {
                             </p>
                           </div>
                         </div>
-
-                        {/* Always show the Ask Elara button if there is a suggested prompt — 
-                            this includes both full validation failures AND success validations with warnings (like Rule 4 PDF mismatch) */}
-                        {validationResult.suggested_prompt && (
+                        {validationResult.success === false && validationResult.suggested_prompt && (
                           <div className="ml-8 mt-1">
                             <button
                               onClick={() => {
-                                // Always give Elara context — PDF text if available, otherwise fall back to title + abstract
-                                const elaraContext = validationResult.pdfText ||
-                                  `PROJECT TITLE: ${title}\n\nABSTRACT: ${abstract}`
-                                const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: elaraContext } })
+                                const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: validationResult.pdfText } })
                                 window.dispatchEvent(event)
                               }}
                               className="px-4 py-2 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 text-[12px] font-medium transition-colors flex items-center gap-2">
