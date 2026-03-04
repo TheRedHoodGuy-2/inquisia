@@ -23,9 +23,16 @@ import type {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const BASE_URL =
-  (import.meta as ImportMeta & { env: Record<string, string> }).env?.VITE_API_URL ??
-  (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3000` : 'http://localhost:3000')
+const _viteApiUrl = (import.meta as ImportMeta & { env: Record<string, string> }).env?.VITE_API_URL
+
+// In production, VITE_API_URL is unset → BASE_URL is '' (same-origin).
+// Vercel's vercel.json proxies /api/* to the real backend, so cookies stay same-site.
+// In local dev, fall back to localhost:3000.
+const BASE_URL = _viteApiUrl != null && _viteApiUrl !== ''
+  ? _viteApiUrl
+  : (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? ''
+    : 'http://localhost:3000')
 
 // ─── Core Fetch ───────────────────────────────────────────────────────────────
 
