@@ -417,7 +417,7 @@ export function UploadPage() {
                           <div className="ml-8 mt-1">
                             <button
                               onClick={() => {
-                                const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: validationResult.pdfText } })
+                                const event = new CustomEvent('open-elara', { detail: { prompt: validationResult.suggested_prompt, context: validationResult.pdfText || extractedPdfText } })
                                 window.dispatchEvent(event)
                               }}
                               className="px-4 py-2 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 text-[12px] font-medium transition-colors flex items-center gap-2">
