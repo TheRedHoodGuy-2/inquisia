@@ -111,7 +111,7 @@ export function AdminPage() {
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium text-[#0A0A0A] dark:text-[#F5F5F5] truncate" style={{ fontFamily: 'var(--font-display)' }}>{p.title}</p>
                         <p className="text-[12px] text-[#9CA3AF]" style={{ fontFamily: 'var(--font-body)' }}>
-                          Supervisor: {p.supervisor_name} · {p.authors.map(a => a.display_name ?? a.full_name).join(', ')}
+                          Supervisor: {p.supervisor_name ?? 'Unassigned'} · {p.authors?.map(a => a.display_name ?? a.full_name).join(', ') ?? ''}
                         </p>
                       </div>
                       <span className="text-[11px] text-[#D97706] flex-shrink-0 font-medium" style={{ fontFamily: 'var(--font-body)' }}>{days}d</span>
