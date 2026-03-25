@@ -146,6 +146,25 @@ export function FloatingAssistantWrapper() {
     }
   }, [location.pathname, user?.role, pagePdfText])
 
+  // Role + page-aware suggestion chips
+  const suggestions = (() => {
+    const path = location.pathname
+    const isProjectPage = path.startsWith('/projects/') && !path.endsWith('/projects')
+    if (isProjectPage) {
+      if (user?.role === 'supervisor') return ['Summarise this project', 'What are the weak points?', 'Compare versions', 'Suggest feedback']
+      if (user?.role === 'student') return ['Explain the methodology', 'Summarise this project', 'What can I improve?', 'Find similar work']
+      return ['Summarise this project', 'What is this about?', 'Find similar projects']
+    }
+    if (path.startsWith('/dashboard')) {
+      if (user?.role === 'supervisor') return ['How many pending reviews?', 'What is a good plagiarism threshold?', 'How do I write good feedback?', 'What is version comparison?']
+      if (user?.role === 'student') return ['How do I submit my project?', 'What does "changes requested" mean?', 'How do I add a co-author?', 'Where do I track my submissions?']
+    }
+    if (user?.role === 'supervisor') return ['How should I write useful feedback?', 'What makes a strong methodology?', 'How do I evaluate plagiarism scores?', 'What are common submission mistakes?']
+    if (user?.role === 'admin') return ['How do I flag a comment?', 'What can admins do?', 'How are plagiarism scores calculated?', 'How do I manage users?']
+    if (user?.role === 'student') return ['How do I submit my project?', 'What does "changes requested" mean?', 'How do I find a supervisor?', 'Can I edit after submitting?']
+    return ['Find ML projects', 'How do I submit?', 'Browse by department']
+  })()
+
   // Fetch project title for header if in project context
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   useEffect(() => {
@@ -275,7 +294,7 @@ export function FloatingAssistantWrapper() {
                     Ask Elara anything about Inquisia.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                    {['Find ML projects', 'How do I submit?', 'Browse by department'].map((suggestion) => (
+                    {suggestions.map((suggestion) => (
                       <button
                         key={suggestion}
                         onClick={() => { setInput(suggestion); inputRef.current?.focus() }}

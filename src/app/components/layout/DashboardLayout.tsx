@@ -212,11 +212,13 @@ export function DashboardLayout({
 }) {
     const { user } = useSession()
 
-    // Default sidebar items if none provided (student dashboard fallback)
+    // Default sidebar items filtered by role
     const defaultSidebarItems: SidebarItem[] = user ? [
-        { icon: <SquaresFour size={18} />, label: 'Overview', key: 'overview', href: '/dashboard' },
-        { icon: <FolderOpen size={18} />, label: 'My Projects', key: 'projects', href: '/dashboard' },
-        { icon: <UploadSimple size={18} />, label: 'Upload New', key: 'upload', href: '/upload' },
+        ...(user.role === 'student' ? [
+            { icon: <SquaresFour size={18} />, label: 'Overview', key: 'overview', href: '/dashboard' },
+            { icon: <FolderOpen size={18} />, label: 'My Projects', key: 'projects', href: '/dashboard' },
+            { icon: <UploadSimple size={18} />, label: 'Upload New', key: 'upload', href: '/upload' },
+        ] : []),
         { icon: <User size={18} />, label: 'Profile', key: 'profile', href: `/profile/${user.id}` },
         { icon: <BookmarkSimple size={18} />, label: 'Bookmarks', key: 'bookmarks', href: '/bookmarks' },
         { icon: <Gear size={18} />, label: 'Settings', key: 'settings', href: '/settings' },

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import {
   BookOpen,
   Sun,
@@ -39,9 +39,19 @@ function InquisiaLogo() {
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function UserAvatar({ id, name, size = 32 }: { id: string; name: string | null; size?: number }) {
+function UserAvatar({ id, name, avatarUrl, size = 32 }: { id: string; name: string | null; avatarUrl?: string | null; size?: number }) {
   const bg = getAvatarColor(id)
   const initials = getInitials(name)
+  if (avatarUrl) {
+    return (
+      <div
+        className="rounded-full flex-shrink-0 overflow-hidden border border-white dark:border-[#181818]"
+        style={{ width: size, height: size, backgroundColor: bg }}
+      >
+        <img src={avatarUrl} alt={name ?? 'Avatar'} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
   return (
     <div
       className="rounded-full flex items-center justify-center flex-shrink-0 border border-white dark:border-[#181818]"
@@ -68,7 +78,6 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const panelRef = useRef<HTMLDivElement>(null)
-  const navigate = useNavigate()
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
@@ -90,12 +99,27 @@ function NotificationBell() {
 
   const notifIcons: Record<string, string> = {
     project_approved: '✓',
-    changes_requested: '⟳',
+    project_changes_requested: '⟳',
     project_rejected: '✕',
-    new_comment: '💬',
+    comment_reply: '💬',
     change_request_approved: '✓',
     change_request_denied: '✕',
-    teammate_added: '👥',
+    account_warned: '⚠',
+    account_restricted: '⚠',
+    account_banned: '✕',
+    project_uploaded: '↑',
+    project_resubmitted: '↑',
+    change_request_submitted: '⟳',
+  }
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    notificationsApi.markAllRead()
+  }
+
+  const handleDeleteAll = () => {
+    setNotifications([])
+    notificationsApi.deleteAll()
   }
 
   return (
@@ -124,46 +148,55 @@ function NotificationBell() {
               <span className="text-[14px] font-semibold text-[#0A0A0A] dark:text-[#F5F5F5]" style={{ fontFamily: 'var(--font-display)' }}>
                 Notifications
               </span>
-              {unreadCount > 0 && (
-                <button
-                  onClick={() => {
-                    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-                    notificationsApi.markAllRead()
-                  }}
-                  className="text-[12px] text-[#0066FF] hover:underline"
-                >
-                  Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-[12px] text-[#0066FF] hover:underline"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Mark all read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={handleDeleteAll}
+                    className="text-[12px] text-[#9CA3AF] hover:text-red-500 transition-colors"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
             {notifications.length === 0 ? (
-              <div className="py-8 text-center text-[#9CA3AF] text-[14px]">No notifications yet</div>
+              <div className="py-8 text-center text-[#9CA3AF] text-[14px]" style={{ fontFamily: 'var(--font-body)' }}>
+                No notifications
+              </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto divide-y divide-[#F0F2F5] dark:divide-[#1C1C1C]">
                 {notifications.map((n) => (
-                  <button
+                  <div
                     key={n.id}
-                    onClick={() => {
-                      setOpen(false)
-                      if (!n.is_read) {
-                        setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x))
-                        notificationsApi.markAllRead()
-                      }
-                      if (n.link) navigate(n.link)
-                    }}
-                    className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-[#F7F8FA] dark:hover:bg-[#181818] transition-colors ${!n.is_read ? 'bg-[#0066FF08]' : ''}`}
+                    className={`flex items-start gap-3 px-4 py-3 ${!n.is_read ? 'bg-[#0066FF08]' : ''}`}
                   >
-                    <span className="text-lg flex-shrink-0 mt-0.5">{notifIcons[n.type] ?? '•'}</span>
+                    <span className="text-base flex-shrink-0 mt-0.5 text-[#9CA3AF]">{notifIcons[n.type] ?? '•'}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-[#0A0A0A] dark:text-[#F5F5F5] leading-snug">{n.title}</p>
-                      <p className="text-[12px] text-[#5C6370] dark:text-[#8B8FA8] mt-0.5 leading-snug">{n.message}</p>
-                      <p className="text-[11px] text-[#9CA3AF] mt-1">{relativeTime(n.created_at)}</p>
+                      <p className="text-[13px] font-medium text-[#0A0A0A] dark:text-[#F5F5F5] leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                        {n.title}
+                      </p>
+                      <p className="text-[12px] text-[#5C6370] dark:text-[#8B8FA8] mt-0.5 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
+                        {n.message}
+                      </p>
+                      <p className="text-[11px] text-[#9CA3AF] mt-1" style={{ fontFamily: 'var(--font-body)' }}>
+                        {relativeTime(n.created_at)}
+                      </p>
                     </div>
                     {!n.is_read && (
                       <div className="w-2 h-2 bg-[#0066FF] rounded-full flex-shrink-0 mt-1.5" />
                     )}
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -213,7 +246,7 @@ function UserMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-[#F0F2F5] dark:hover:bg-[#181818] transition-colors duration-150"
       >
-        <UserAvatar id={user.id} name={user.full_name ?? user.display_name} size={32} />
+        <UserAvatar id={user.id} name={user.full_name ?? user.display_name} avatarUrl={user.avatar_url} size={32} />
         <span
           className="text-[14px] text-[#0A0A0A] dark:text-[#F5F5F5] hidden sm:block max-w-[120px] truncate"
           style={{ fontFamily: 'var(--font-body)', fontWeight: 500 }}

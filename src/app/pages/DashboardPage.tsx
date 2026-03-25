@@ -9,7 +9,7 @@ import {
 } from 'phosphor-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useSession } from '../../context/SessionContext'
-import { projectsApi, supervisorApi } from '../../lib/api'
+import { projectsApi, supervisorApi, aiApi } from '../../lib/api'
 import type { Project, ProjectVersion, ProjectAuthor, ChangeRequest } from '../../lib/types'
 import { getCategoryStyle, relativeTime, formatNumber, getAvatarColor, getInitials } from '../../lib/utils'
 import { useTheme } from '../../context/ThemeContext'
@@ -437,55 +437,110 @@ function SupervisorProjectRow({ project }: { project: Project }) {
   const catStyle = project.ai_category ? getCategoryStyle(project.ai_category, isDark) : null
   const daysOld = Math.floor((Date.now() - new Date(project.updated_at).getTime()) / (24 * 60 * 60 * 1000))
   const isStale = daysOld > 7 && project.status === 'pending'
+  const [comparing, setComparing] = useState(false)
+  const [comparison, setComparison] = useState<string | null>(null)
+
+  const hasVersions = project.version != null && project.version > 1
+
+  const handleCompare = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (comparing) return
+    setComparing(true)
+    setComparison(null)
+    const res = await aiApi.compareVersions(project.id)
+    if (res.success) {
+      setComparison(res.data.comparison)
+    } else {
+      setComparison(`Could not compare versions: ${res.error}`)
+    }
+    setComparing(false)
+  }
 
   return (
-    <Link to={`/projects/${project.id}`}
-      className="block rounded-2xl bg-white dark:bg-[#101010] border border-[#E5E7EB] dark:border-[#1C1C1C] p-5 hover:border-[#0066FF] hover:shadow-[0_4px_16px_rgba(0,102,255,0.08)] transition-all duration-150"
+    <div
+      className="rounded-2xl bg-white dark:bg-[#101010] border border-[#E5E7EB] dark:border-[#1C1C1C] overflow-hidden transition-all duration-150"
       style={{ boxShadow: 'var(--shadow-card)' }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="mb-1 line-clamp-1 text-[#0A0A0A] dark:text-[#F5F5F5]"
-            style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '15px' }}>
-            {project.title}
-          </h3>
-          <p className="text-[12px] text-[#9CA3AF] mb-2" style={{ fontFamily: 'var(--font-body)' }}>
-            {project.authors.map((a) => a.full_name ?? a.display_name).join(', ')}
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {statusColors && (
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium"
-                style={{ backgroundColor: statusColors.badge, color: statusColors.text, fontFamily: 'var(--font-body)' }}>
-                {statusColors.label}
+      <Link to={`/projects/${project.id}`}
+        className="block p-5 hover:bg-[#F7F8FA] dark:hover:bg-[#181818] transition-colors"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="mb-1 line-clamp-1 text-[#0A0A0A] dark:text-[#F5F5F5]"
+              style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '15px' }}>
+              {project.title}
+            </h3>
+            <p className="text-[12px] text-[#9CA3AF] mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+              {project.authors.map((a) => a.full_name ?? a.display_name).join(', ')}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {statusColors && (
+                <span className="px-2.5 py-1 rounded-full text-[11px] font-medium"
+                  style={{ backgroundColor: statusColors.badge, color: statusColors.text, fontFamily: 'var(--font-body)' }}>
+                  {statusColors.label}
+                </span>
+              )}
+              {catStyle && project.ai_category && (
+                <span className="px-2.5 py-1 rounded-full text-[11px]"
+                  style={{ backgroundColor: catStyle.bg, color: catStyle.text, fontFamily: 'var(--font-body)' }}>
+                  {project.ai_category}
+                </span>
+              )}
+              {isStale && (
+                <span className="flex items-center gap-1 text-[11px] text-[#D97706]">
+                  <WarningCircle size={12} />{daysOld} days pending
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex-shrink-0 text-right">
+            {project.plagiarism_score !== null && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] mb-1 ${project.plagiarism_score > 30 ? 'bg-[#FEF2F2] dark:bg-red-900/20 text-[#DC2626] dark:text-red-400' : 'bg-[#F0FDF4] dark:bg-green-900/20 text-[#16A34A] dark:text-green-400'}`}
+                style={{ fontFamily: 'var(--font-mono)' }}>
+                {project.plagiarism_score}%
+                {project.plagiarism_score > 30 && project.similar_project_id && <WarningCircle size={13} weight="fill" />}
               </span>
             )}
-            {catStyle && project.ai_category && (
-              <span className="px-2.5 py-1 rounded-full text-[11px]"
-                style={{ backgroundColor: catStyle.bg, color: catStyle.text, fontFamily: 'var(--font-body)' }}>
-                {project.ai_category}
-              </span>
-            )}
-            {isStale && (
-              <span className="flex items-center gap-1 text-[11px] text-[#D97706]">
-                <WarningCircle size={12} />{daysOld} days pending
-              </span>
-            )}
+            <p className="text-[11px] text-[#9CA3AF]" style={{ fontFamily: 'var(--font-body)' }}>{relativeTime(project.updated_at)}</p>
           </div>
         </div>
-        <div className="flex-shrink-0 text-right">
-          {project.plagiarism_score !== null && (
-            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] mb-1 ${project.plagiarism_score > 30 ? 'bg-[#FEF2F2] dark:bg-red-900/20 text-[#DC2626] dark:text-red-400' : 'bg-[#F0FDF4] dark:bg-green-900/20 text-[#16A34A] dark:text-green-400'}`}
-              style={{
-                fontFamily: 'var(--font-mono)',
-              }}>
-              {project.plagiarism_score}%
-              {project.plagiarism_score > 30 && project.similar_project_id && <WarningCircle size={13} weight="fill" />}
-            </span>
+      </Link>
+
+      {/* Elara version comparison — only shown when project has been revised */}
+      {hasVersions && (
+        <div className="border-t border-[#E5E7EB] dark:border-[#1C1C1C] px-5 py-3">
+          {!comparison ? (
+            <button
+              onClick={(e) => void handleCompare(e)}
+              disabled={comparing}
+              className="flex items-center gap-2 text-[12px] text-[#0066FF] hover:underline disabled:opacity-60"
+              style={{ fontFamily: 'var(--font-body)', fontWeight: 500 }}
+            >
+              {comparing ? (
+                <><div className="w-3 h-3 rounded-full border-2 border-[#0066FF]/30 border-t-[#0066FF] animate-spin" />Elara is comparing versions...</>
+              ) : (
+                <><Sparkle size={13} weight="fill" />Compare versions with Elara</>
+              )}
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0066FF] uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>
+                  <Sparkle size={11} weight="fill" /> Elara's Version Analysis
+                </span>
+                <button onClick={() => setComparison(null)} className="text-[11px] text-[#9CA3AF] hover:text-[#5C6370]" style={{ fontFamily: 'var(--font-body)' }}>
+                  Close
+                </button>
+              </div>
+              <p className="text-[13px] text-[#5C6370] dark:text-[#8B8FA8] leading-relaxed whitespace-pre-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+                {comparison}
+              </p>
+            </div>
           )}
-          <p className="text-[11px] text-[#9CA3AF]" style={{ fontFamily: 'var(--font-body)' }}>{relativeTime(project.updated_at)}</p>
         </div>
-      </div>
-    </Link>
+      )}
+    </div>
   )
 }
 
@@ -653,7 +708,6 @@ function SupervisorDashboard({ firstName, userId }: { firstName: string; userId:
           {/* Quick actions */}
           <h2 className="text-[15px] text-[#0A0A0A] dark:text-[#F5F5F5] mb-4" style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>Quick Actions</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-            <QuickActionCard icon={<UploadSimple size={20} />} label="Upload New Project" desc="Submit your final year project" href="/upload" color="#0066FF" />
             <QuickActionCard icon={<MagnifyingGlass size={20} />} label="Browse Repository" desc="Explore approved projects" href="/projects" color="#0066FF" />
             <QuickActionCard icon={<BookmarkSimple size={20} />} label="My Bookmarks" desc="Projects you've saved" href="/bookmarks" color="#0066FF" />
             <QuickActionCard icon={<ElaraLogo className="w-5 h-5" />} label="Ask Elara" desc="AI research assistant" href="/elara" color="#0066FF" />

@@ -102,7 +102,13 @@ export function ElaraPage() {
     setSending(false)
   }, [input, sending, messages])
 
-  const suggestions = ['What projects are trending?', 'Help me find ML projects', 'How do I submit a thesis?', 'Who are the top supervisors?']
+  const suggestions = user?.role === 'supervisor'
+    ? ['What are common submission mistakes?', 'How should I write useful feedback?', 'What makes a strong methodology section?', 'How do I evaluate plagiarism scores?']
+    : user?.role === 'admin'
+    ? ['How do I flag a comment for review?', 'What does the plagiarism score measure?', 'How are user roles assigned?', 'What can admins do in Inquisia?']
+    : user?.role === 'student'
+    ? ['How do I submit my project?', 'What does "changes requested" mean?', 'How do I find a supervisor?', 'Can I add co-authors after submitting?']
+    : ['What projects are trending?', 'Help me find ML projects', 'How do I submit a thesis?', 'Who are the top supervisors?']
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] max-w-[680px] mx-auto px-5 md:px-0">

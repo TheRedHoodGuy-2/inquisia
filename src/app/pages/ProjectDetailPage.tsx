@@ -341,9 +341,21 @@ function CommentCard({
     }`
 
   const handleReplySubmit = async () => {
-    if (!replyText.trim() || postingReply) return
+    const trimmed = replyText.trim()
+    if (!trimmed || postingReply) return
+
+    const FLAGGED_PATTERNS = [
+      /\bfuck\b/i, /\bshit\b/i, /\bbitch\b/i, /\bass\b/i, /\bcunt\b/i,
+      /\bnigg/i, /\bfaggot\b/i, /\bwhore\b/i, /\bslut\b/i, /\bkill\s+your?self\b/i,
+      /\bstupid\s+(idiot|moron|loser)\b/i,
+    ]
+    const likelyInappropriate = FLAGGED_PATTERNS.some((p) => p.test(trimmed))
+    if (likelyInappropriate) {
+      toast.warning('Your reply may contain inappropriate language. It will be flagged for admin review.', { duration: 5000 })
+    }
+
     setPostingReply(true)
-    const res = await commentsApi.create(projectId, replyText.trim(), comment.id)
+    const res = await commentsApi.create(projectId, trimmed, comment.id, likelyInappropriate)
     if (res.success) {
       onAddReply?.(comment.id, res.data)
       setReplyText('')
@@ -648,9 +660,26 @@ function CommentsSection({ projectId, project }: { projectId: string; project?: 
   })
 
   const handleSubmit = async () => {
-    if (!newComment.trim() || posting) return
+    const trimmed = newComment.trim()
+    if (!trimmed || posting) return
+
+    // Basic profanity / inappropriate content check
+    const FLAGGED_PATTERNS = [
+      /\bfuck\b/i, /\bshit\b/i, /\bbitch\b/i, /\bass\b/i, /\bcunt\b/i,
+      /\bnigg/i, /\bfaggot\b/i, /\bwhore\b/i, /\bslut\b/i, /\bkill\s+your?self\b/i,
+      /\bstupid\s+(idiot|moron|loser)\b/i,
+    ]
+    const likelyInappropriate = FLAGGED_PATTERNS.some((p) => p.test(trimmed))
+
+    if (likelyInappropriate) {
+      toast.warning(
+        'Your comment may contain inappropriate language. It will be flagged for admin review.',
+        { duration: 5000 }
+      )
+    }
+
     setPosting(true)
-    const res = await commentsApi.create(projectId, newComment.trim())
+    const res = await commentsApi.create(projectId, trimmed, undefined, likelyInappropriate)
     if (res.success) {
       setComments((prev) => [res.data, ...prev])
       setNewComment('')

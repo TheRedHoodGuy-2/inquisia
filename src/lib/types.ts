@@ -32,6 +32,7 @@ export interface User {
   is_active: boolean
   account_status: AccountStatus
   status_reason: string | null
+  avatar_url: string | null
   created_at: string
   updated_at: string
 }

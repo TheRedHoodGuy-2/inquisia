@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import {
   User, Lock, Palette, Link as LinkIcon, Plus, X, Check,
-  Eye, EyeSlash, Sun, Moon, WarningCircle, Laptop,
+  Eye, EyeSlash, Sun, Moon, WarningCircle, Laptop, Camera, Trash,
 } from 'phosphor-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useSession } from '../../context/SessionContext'
 import { useTheme } from '../../context/ThemeContext'
 import { usersApi } from '../../lib/api'
+import { useRef } from 'react'
 import { getAvatarColor, getInitials } from '../../lib/utils'
 import { toast } from 'sonner'
 import type { UserLink } from '../../lib/types'
@@ -126,6 +127,9 @@ function ProfileTab() {
   const [newLinkUrl, setNewLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url ?? null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   if (!user) return null
 
@@ -141,6 +145,39 @@ function ProfileTab() {
     setSaving(false)
   }
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be smaller than 2MB.')
+      return
+    }
+    setAvatarPreview(URL.createObjectURL(file))
+    setUploadingAvatar(true)
+    const res = await usersApi.uploadAvatar(user.id, file)
+    if (res.success) {
+      await refresh()
+      toast.success('Profile photo updated!')
+    } else {
+      toast.error('Failed to upload photo.')
+      setAvatarPreview(user.avatar_url ?? null)
+    }
+    setUploadingAvatar(false)
+  }
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true)
+    const res = await usersApi.removeAvatar(user.id)
+    if (res.success) {
+      setAvatarPreview(null)
+      await refresh()
+      toast.success('Profile photo removed.')
+    } else {
+      toast.error('Failed to remove photo.')
+    }
+    setUploadingAvatar(false)
+  }
+
   const addLink = () => {
     if (!newLinkTitle.trim() || !newLinkUrl.trim()) return
     setLinks((prev) => [...prev, { title: newLinkTitle.trim(), url: newLinkUrl.trim() }])
@@ -153,19 +190,52 @@ function ProfileTab() {
 
   return (
     <div className="space-y-5">
-      {/* Avatar display */}
-      <SectionCard title="Profile Photo" description="Your initials are used as your avatar.">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-[22px]"
-            style={{ backgroundColor: bgColor, fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-            {initials}
+      {/* Avatar upload */}
+      <SectionCard title="Profile Photo" description="Upload a photo or use your initials as avatar.">
+        <div className="flex items-center gap-5">
+          {/* Avatar preview */}
+          <div className="relative flex-shrink-0">
+            <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-white text-[26px] ring-4 ring-[#F0F2F5] dark:ring-[#1C1C1C]"
+              style={{ backgroundColor: bgColor, fontFamily: 'var(--font-display)', fontWeight: 700 }}>
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+              ) : initials}
+            </div>
+            {uploadingAvatar && (
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-[14px] text-[#0A0A0A] dark:text-[#F5F5F5] mb-1" style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>
-              {user.display_name ?? user.full_name ?? user.email}
-            </p>
-            <p className="text-[12px] text-[#9CA3AF]" style={{ fontFamily: 'var(--font-body)' }}>
-              Avatar is generated from your name automatically
+          {/* Actions */}
+          <div className="flex flex-col gap-2">
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => void handleAvatarChange(e)}
+            />
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-[13px] border border-[#E5E7EB] dark:border-[#1C1C1C] text-[#0A0A0A] dark:text-[#F5F5F5] hover:border-[#0066FF] hover:text-[#0066FF] transition-colors disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}>
+              <Camera size={14} />
+              {avatarPreview ? 'Change photo' : 'Upload photo'}
+            </button>
+            {avatarPreview && (
+              <button
+                onClick={() => void handleRemoveAvatar()}
+                disabled={uploadingAvatar}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors disabled:opacity-50"
+                style={{ fontFamily: 'var(--font-body)' }}>
+                <Trash size={14} />
+                Remove photo
+              </button>
+            )}
+            <p className="text-[11px] text-[#9CA3AF] ml-1" style={{ fontFamily: 'var(--font-body)' }}>
+              JPEG, PNG, WebP or GIF · max 2MB
             </p>
           </div>
         </div>

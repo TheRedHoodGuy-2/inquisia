@@ -322,6 +322,14 @@ export const adminApi = {
     }),
   deleteCategory: (id: string) =>
     apiFetch<null>(`/api/admin/ai-categories/${id}`, { method: 'DELETE' }),
+  flaggedComments: () => apiFetch<any[]>('/api/admin/comments/flagged'),
+  unflagComment: (commentId: string) =>
+    apiFetch<null>(`/api/admin/comments/${commentId}/flag`, {
+      method: 'PATCH',
+      body: JSON.stringify({ flagged: false }),
+    }),
+  deleteComment: (commentId: string) =>
+    apiFetch<null>(`/api/admin/comments/${commentId}/flag`, { method: 'DELETE' }),
 }
 
 // AI
@@ -375,6 +383,8 @@ export const aiApi = {
       method: 'POST',
       body: JSON.stringify({ message, history }),
     }),
+  compareVersions: (projectId: string) =>
+    apiFetch<{ comparison: string }>(`/api/projects/${projectId}/ai/compare-versions`, { method: 'POST' }),
 }
 
 // Helper to map backend CommentNode matches to frontend Comment interface
@@ -405,13 +415,18 @@ export const commentsApi = {
       if (!res.success) return res;
       return { ...res, data: res.data.map(mapCommentNode) };
     }),
-  create: (projectId: string, content: string, parentId?: string) =>
+  create: (projectId: string, content: string, parentId?: string, flagged = false) =>
     apiFetch<any>(`/api/projects/${projectId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ content, parent_id: parentId }),
+      body: JSON.stringify({ content, parent_id: parentId, flagged }),
     }).then(res => {
       if (!res.success) return res;
       return { ...res, data: mapCommentNode(res.data) };
+    }),
+  flag: (commentId: string) =>
+    apiFetch<null>(`/api/admin/comments/${commentId}/flag`, {
+      method: 'PATCH',
+      body: JSON.stringify({ flagged: true }),
     }),
   update: (commentId: string, content: string) =>
     apiFetch<any>(`/api/comments/${commentId}`, {
@@ -442,6 +457,16 @@ export const usersApi = {
     apiFetch<{ id: string; full_name: string; display_name: string | null; matric_no: string }>(
       `/api/users/lookup?matric_no=${encodeURIComponent(matricNo)}`
     ),
+  uploadAvatar: (userId: string, file: File) => {
+    const form = new FormData()
+    form.append('avatar', file)
+    return apiFetch<{ avatar_url: string }>(`/api/users/${userId}/avatar`, {
+      method: 'POST',
+      body: form,
+    })
+  },
+  removeAvatar: (userId: string) =>
+    apiFetch<null>(`/api/users/${userId}/avatar`, { method: 'DELETE' }),
 }
 
 // Bookmarks
@@ -462,7 +487,9 @@ export const bookmarksApi = {
 export const notificationsApi = {
   list: () => apiFetch<Notification[]>('/api/notifications'),
   markAllRead: () =>
-    apiFetch<null>('/api/notifications/read-all', { method: 'POST' }),
+    apiFetch<null>('/api/notifications/read', { method: 'PATCH' }),
+  deleteAll: () =>
+    apiFetch<null>('/api/notifications', { method: 'DELETE' }),
 }
 
 export { apiFetch }

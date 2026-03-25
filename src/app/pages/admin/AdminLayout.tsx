@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { ChartBar, Users, FolderOpen, GraduationCap, Buildings, Robot } from 'phosphor-react'
+import { ChartBar, Users, FolderOpen, GraduationCap, Buildings, Robot, Warning } from 'phosphor-react'
 import { useSession } from '../../../context/SessionContext'
 import { ElaraLogo } from '../../components/ui/ElaraLogo'
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { icon: <GraduationCap size={18} />, label: 'Supervisors', href: '/admin/supervisors' },
   { icon: <Buildings size={18} />, label: 'Departments', href: '/admin/departments' },
   { icon: <ElaraLogo className="w-4 h-4" />, label: 'AI Categories', href: '/admin/ai-categories' },
+  { icon: <Warning size={18} />, label: 'Flagged Comments', href: '/admin/flagged-comments' },
 ]
 
 export function AdminLayout() {

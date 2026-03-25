@@ -9,6 +9,50 @@ import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
 
+// ─── URL validator ────────────────────────────────────────────────────────────
+
+const ALLOWED_URL_HOSTS = [
+  'github.com', 'gitlab.com', 'bitbucket.org',
+  'vercel.app', 'netlify.app', 'render.com', 'railway.app', 'fly.dev',
+  'heroku.com', 'onrender.com', 'pages.dev', 'web.app', 'firebaseapp.com',
+  'youtube.com', 'youtu.be', 'drive.google.com', 'docs.google.com',
+  'figma.com', 'notion.so', 'notion.site',
+  'researchgate.net', 'academia.edu', 'ieee.org', 'acm.org',
+  'arxiv.org', 'springer.com', 'sciencedirect.com',
+  'medium.com', 'dev.to', 'hashnode.dev', 'wordpress.com',
+  'linkedin.com', 'twitter.com', 'x.com',
+  'babcock.edu.ng',
+]
+
+const BLOCKED_URL_KEYWORDS = [
+  'pornhub', 'xvideos', 'xnxx', 'xhamster', 'redtube', 'youporn',
+  'onlyfans', 'brazzers', 'bangbros', '4chan', 'rule34',
+  'casino', 'bet365', 'betway', 'draftkings', '1xbet',
+  'torrent', 'piratebay', 'rarbg', '1337x',
+]
+
+function validateProjectUrl(url: string): { valid: boolean; reason?: string } {
+  if (!url) return { valid: true }
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return { valid: false, reason: 'URL must start with http:// or https://' }
+    }
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '')
+    const blocked = BLOCKED_URL_KEYWORDS.some((kw) => hostname.includes(kw) || url.toLowerCase().includes(kw))
+    if (blocked) {
+      return { valid: false, reason: 'This URL is not permitted on this platform.' }
+    }
+    const allowed = ALLOWED_URL_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))
+    if (!allowed) {
+      return { valid: false, reason: `URLs must be from recognised platforms (e.g. GitHub, Vercel, Google Drive). "${hostname}" is not on the allowed list.` }
+    }
+    return { valid: true }
+  } catch {
+    return { valid: false, reason: 'Please enter a valid URL.' }
+  }
+}
+
 // ─── Progress indicator ───────────────────────────────────────────────────────
 
 function ProgressIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
@@ -262,6 +306,11 @@ export function UploadPage() {
     const res = await usersApi.lookup(matric)
     if (res.success) {
       if (res.data) {
+        if (res.data.id === user?.id) {
+          toast.error('You are already the team lead — you cannot add yourself as a co-author.')
+          setSearching(false)
+          return
+        }
         setSearchResult({
           id: res.data.id,
           name: res.data.display_name ?? res.data.full_name,
@@ -275,6 +324,10 @@ export function UploadPage() {
   }
 
   const handleAddTeammate = (member: { id: string; name: string; matric: string }) => {
+    if (member.id === user?.id) {
+      toast.error('You cannot add yourself as a co-author.')
+      return
+    }
     if (!teammates.find((t) => t.id === member.id)) {
       setTeammates((prev) => [...prev, { id: member.id, name: member.name, matric: member.matric, role: '' }])
     }
@@ -328,8 +381,12 @@ export function UploadPage() {
     validatedContent.abstract === abstract &&
     validationResult?.success === true
 
+  const githubUrlValid = validateProjectUrl(githubUrl)
+  const liveUrlValid = validateProjectUrl(liveUrl)
+  const urlsValid = githubUrlValid.valid && liveUrlValid.valid
+
   const canProceed = [
-    pdfFile !== null && !isExtracting, // Step 1: require file and wait for extraction
+    pdfFile !== null && !isExtracting && urlsValid, // Step 1: require file, wait for extraction, valid URLs
     title.length >= 5 && abstract.length >= 50 && isContentValidated, // Step 2 — require AI validation
     true, // Step 3 — teammates optional
     selectedSupervisor.length > 0, // Step 4
@@ -362,8 +419,22 @@ export function UploadPage() {
                       <Spinner size={14} className="animate-spin" /> Extracting text for Elara context...
                     </div>
                   )}
-                  <FloatingLabel id="github" label="GitHub URL (optional)" value={githubUrl} onChange={setGithubUrl} type="url" />
-                  <FloatingLabel id="live" label="Live Demo URL (optional)" value={liveUrl} onChange={setLiveUrl} type="url" />
+                  <div>
+                    <FloatingLabel id="github" label="GitHub URL (optional)" value={githubUrl} onChange={setGithubUrl} type="url" />
+                    {githubUrl && !validateProjectUrl(githubUrl).valid && (
+                      <p className="mt-1.5 ml-4 text-[12px] text-red-500" style={{ fontFamily: 'var(--font-body)' }}>
+                        {validateProjectUrl(githubUrl).reason}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <FloatingLabel id="live" label="Live Demo URL (optional)" value={liveUrl} onChange={setLiveUrl} type="url" />
+                    {liveUrl && !validateProjectUrl(liveUrl).valid && (
+                      <p className="mt-1.5 ml-4 text-[12px] text-red-500" style={{ fontFamily: 'var(--font-body)' }}>
+                        {validateProjectUrl(liveUrl).reason}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </StepCard>
             </motion.div>
